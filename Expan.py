@@ -159,7 +159,7 @@ class Expan(object):
         self.len_vocab = len(self.list_eids)
         self.eid2index = {eid: i for i, eid in enumerate(self.list_eids)}
 
-        self.model = Model(self.len_vocab, self.mask_token_id)
+        self.model = Model(self.len_vocab, self.mask_token_id, model_name=model_name)
 
         self.cls_names = cls_names
         self.num_cls = len(cls_names)
@@ -185,10 +185,12 @@ class Expan(object):
 
     # Pretraining model with Contrastive Loss and Masked Entity Prediction Loss
     def pretrain(self, save_path, lr=1e-5, epoch=5, batchsize=128, num_sen_per_entity=256, smoothing=0.1):
-        self.model = Model(self.len_vocab, self.mask_token_id)
+        if self.model is None:
+            self.model = Model(self.len_vocab, self.mask_token_id, model_name="./bert")
 
         if not os.path.exists(save_path):
-            os.mkdir(save_path)
+            # os.mkdir(save_path)
+            os.makedirs(save_path)
 
         # freeze part of BERT
         unfreeze_layers = ['encoder.layer.11', 'head', 'projection_head']
@@ -221,7 +223,7 @@ class Expan(object):
             # rebuild dataset before each epoch
             list_dataset = []
             for eid in self.list_eids:
-                this_dataset = Eid2Data(eid, eid2sents, [eid2index[eid]], num_sen_per_entity)
+                this_dataset = Eid2Data(eid, self.eid2sents, [self.eid2index[eid]], num_sen_per_entity)
                 list_dataset.append(this_dataset)
 
             dataset = ConcatDataset(list_dataset)
@@ -445,6 +447,7 @@ class Expan(object):
             with torch.no_grad():
                 for j, batch in enumerate(data_loader):
                     output = self.model.forward(batch[0].cuda())
+                    output = output[1] if output[0] is None else output[0]
                     list_dists.append(output)
 
             log_dists = torch.cat(list_dists).cpu().numpy()
@@ -464,9 +467,9 @@ class Expan(object):
 
     def ensemble_eindex2dists(self, model_ids):
         pkl_name = self.pkl_path_e2d
-        for model_id in model_ids[:-1]:
-            pkl_name += str(model_id) + '-'
-        pkl_name += str(model_ids[-1])
+        # for model_id in model_ids[:-1]:
+        #     pkl_name += str(model_id) + '-'
+        # pkl_name += str(model_ids[-1])
         log_pkl_name = pkl_name + '_log'
         print('Making %s and %s ...' % (pkl_name, log_pkl_name))
         eindex2dist = pickle.load(open(self.pkl_path_e2d + str(model_ids[0]), 'rb'))
@@ -547,8 +550,8 @@ class Expan(object):
         for _, batch in enumerate(data_loader):
             with torch.no_grad():
                 output = self.model.forward(batch[0].cuda())
+                output = output[1] if output[0] is None else output[0]
                 list_dists.append(output)
-
         dist = torch.cat(list_dists).cpu().numpy()
         dist = np.mean(np.exp(dist), axis=0)
         return dist

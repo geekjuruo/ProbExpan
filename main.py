@@ -21,7 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('-pkl_cls2eids', default='cls2eids.pkl', help='name of cls2eids pkl file')
     args = parser.parse_args()
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     print(args)
 
     if not os.path.exists(os.path.join(args.dataset, args.output)):
@@ -61,13 +61,19 @@ if __name__ == '__main__':
 
     if args.pretrained_model is not None:
         if args.ensemble:
-            scores = []
-            print('Scores:')
-            for i in model_ids:
-                score = expan.eval_model(args.save_path, args.pretrained_model, i, query_sets)
-                scores.append(score)
-                print('[Model %d] %f\n' % (i, score))
-            top_model_ids = model_ids[np.argsort(scores)[:args.num_top_model]]
+            # if "wiki" in args.dataset:
+            #     top_model_ids = [1, 2]
+            # elif "apr" in args.dataset:
+            #     top_model_ids = [1, 2]
+            # else:
+            if True:
+                scores = []
+                print('Scores:')
+                for i in model_ids:
+                    score = expan.eval_model(args.save_path, args.pretrained_model, i, query_sets)
+                    scores.append(score)
+                    print('[Model %d] %f\n' % (i, score))
+                top_model_ids = model_ids[np.argsort(scores)[:args.num_top_model]]
             print(top_model_ids)
 
     else:
@@ -86,17 +92,17 @@ if __name__ == '__main__':
             else:
                 expan.pretrain(args.save_path, lr=1e-5, epoch=5, batchsize=128, num_sen_per_entity=256, smoothing=0.075)
             exit(0)
-
-    if not os.path.exists(os.path.join(args.dataset, args.pkl_e2d)):
-        if args.ensemble:
-            for i in top_model_ids:
-                if not os.path.exists(os.path.join(args.dataset, args.pkl_e2d + str(i))):
-                    expan.load_model(os.path.join(args.save_path + str(i), args.pretrained_model))
-                    expan.make_eindex2dists(batchsize=128, model_id=i)
-            expan.ensemble_eindex2dists(top_model_ids)
-        else:
+    if args.ensemble:
+        for i in top_model_ids:
+            if not os.path.exists(os.path.join(args.dataset, args.pkl_e2d + str(i))):
+                expan.load_model(os.path.join(args.save_path + str(i), args.pretrained_model))
+                expan.make_eindex2dist(batchsize=128, model_id=i)
+        expan.ensemble_eindex2dists(top_model_ids)
+    else:
+        if not os.path.exists(os.path.join(args.dataset, args.pkl_e2d)):
             expan.load_model(os.path.join(args.save_path, args.pretrained_model))
-            expan.make_eindex2dists(batchsize=128)
+            expan.make_eindex2dist(batchsize=128)
+    print("Get Dist")
 
     '''
     Expanding and Evalutation
